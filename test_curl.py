@@ -12,7 +12,7 @@ query = {"model": "code-davinci-002",
          "stop": "\n"
         }
 
-output = subprocess.run(["curl", 
+output = subprocess.run(["curl", "--silent", 
                 "https://api.openai.com/v1/completions", 
                 "-H", "Content-Type: application/json", 
                 "-H", f"Authorization: Bearer {api_key}", 
