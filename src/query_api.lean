@@ -61,7 +61,7 @@ proc_cmds ← cmd_of_json request_json,
 io.cmd proc_cmds 
 }
 
-
+/-
 run_cmd (do
   s <- tactic.unsafe_run_io (do 
     k ← get_key, 
@@ -71,6 +71,6 @@ run_cmd (do
   tactic.trace s,
   pure ()
 )
-
+-/
 end CompletionRequest 
 

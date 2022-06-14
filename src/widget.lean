@@ -1,10 +1,46 @@
 import system.io
+import query_api 
 
 open widget tactic
+section json 
+meta def list.lookup_prod {α β} : (list (α × β)) → (α → bool) → option β
+| [] _ := none
+| (⟨a,b⟩::xs) p := if p a then pure b else xs.lookup_prod p
+
+
+meta def json.lookup : json → string → option json
+| (json.object kvs) str := kvs.lookup_prod $ λ k, k = str
+| _ _ := none
+
+end json 
+
+meta def text_of_return_json (parsed : json) : string := 
+match json.lookup parsed "choices" with 
+| some choices_json :=
+  match json.lookup choices_json[0] "text" with 
+    |some wrapped_string := 
+      match wrapped_string with 
+      | json.of_string return_text := return_text 
+      | _ := "error"
+      end
+    | none := "asd;lfjsa;" 
+  end
+| none := "Something else bad happend!"
+end 
 
 /- @zhangir: write your code for getting response from codex here :-) -/
 meta def get_response : string → io string
-| s := pure ("hello, " ++ s)
+| s := 
+do {
+let prompt := prompt_of_nl_statement s few_shot_prompt,  
+return_json ← get_completion_of_request {prompt:=prompt},
+io.put_str return_json,  
+let maybe_return_parsed := json.parse return_json, 
+match maybe_return_parsed with 
+| some j := return $ (text_of_return_json j) ++ " :=" 
+| none := return "Something bad happened!" 
+end 
+}
 
 -- use some @gebner magic here
 meta def unsafe_perform_io {α} (m : io α) : except io.error α :=
@@ -41,7 +77,7 @@ meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_a
     h "div" [className "flex flex-column"] (
       state.bubbles.reverse.map (λ bubble,
         h "div" [] [
-          h "span" [className "underline"] [bubble.user],
+          h "span" [className "underline blue"] [bubble.user],
           ": ",
           bubble.body
         ]
