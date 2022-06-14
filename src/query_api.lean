@@ -1,4 +1,5 @@
 import tactic 
+import prompting 
 
 
 meta def get_key : io string := do
@@ -15,13 +16,13 @@ meta structure CompletionRequest : Type :=
 (prompt: string)
 (model: string := "code-davinci-002")
 (temperature : int := 0.2)
-(max_tokens : int := 200)
+(max_tokens : int := 150)
 (stop : option string := ":=")
 
 meta def test_completion_request : CompletionRequest := 
 {
-  prompt := "I am an expert Python programmer. Write a function that calculates the max s-t flow of a directed graph¬def", 
-  stop := "\n"
+  prompt := example_prompt, 
+  stop := none
 }
 
 meta def to_json : CompletionRequest → json :=
