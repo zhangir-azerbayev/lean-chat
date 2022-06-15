@@ -7,53 +7,42 @@ meta def list.lookup_prod {α β} : (list (α × β)) → (α → bool) → opti
 | [] _ := none
 | (⟨a,b⟩::xs) p := if p a then pure b else xs.lookup_prod p
 
+open except
 
-meta def json.lookup : json → string → option json
-| (json.object kvs) str := kvs.lookup_prod $ λ k, k = str
-| _ _ := none
+meta def json.lookup : json → string → except string json
+| (json.object kvs) str := 
+  match kvs.lookup_prod $ λ k, k = str with
+  | some v := except.ok v
+  | none := except.error ("no key " ++ str)
+  end
+| _ _ := except.error "not an object"
+
+meta def json.as_string : json → except string string
+  | (json.of_string s) := except.ok s
+  | _ := except.error "not a string"
+
+meta def json.as_array : json → except string (list json)
+  | (json.array xs) := ok xs
+  | _ := error "not an array"
+
+meta def except.liftOption {α}: option α → except string α
+  | none := except.error "option was none"
+  | (some a ) := except.ok a
 
 end json 
 
-meta def text_of_return_json (parsed : json) : string := 
-match json.lookup parsed "choices" with 
-| some choices_json :=
-  match json.lookup choices_json[0] "text" with 
-    |some wrapped_string := 
-      match wrapped_string with 
-      | json.of_string return_text := return_text 
-      | _ := "error"
-      end
-    | none := "asd;lfjsa;" 
-  end
-| none := "Something else bad happend!"
-end 
+meta def text_of_return_json (parsed : json) : except string string := do
+  choices_json ← json.lookup parsed "choices",
+  head :: _ ← json.as_array choices_json | except.error "empty array",
+  t ← json.lookup head "text",
+  s ← json.as_string t,
+  return s
 
-/- @zhangir: write your code for getting response from codex here :-) -/
-meta def get_response : string → io string
-| s := 
-do {
-let prompt := prompt_of_nl_statement s few_shot_prompt,  
-return_json ← get_completion_of_request {prompt:=prompt},
-io.put_str return_json,  
-let maybe_return_parsed := json.parse return_json, 
-match maybe_return_parsed with 
-| some j := return $ (text_of_return_json j) ++ " :=" 
-| none := return "Something bad happened!" 
-end 
-}
+meta def run_except {α} : except string α → io α
+  | (except.ok a) := pure a
+  | (except.error e) := io.fail e
+  
 
--- use some @gebner magic here
-meta def unsafe_perform_io {α} (m : io α) : except io.error α :=
-match (cast undefined m : unit → sum α io.error) () with
-| sum.inl a := except.ok a
-| sum.inr err := except.error err
-end
-
-meta def unsafe_get_response (input : string) : string :=
-  match unsafe_perform_io (get_response input) with
-  | except.ok a := a
-  | except.error e := "error"
-  end
 
 meta structure bubble :=
   (body : string) -- [todo] add formatting etc
@@ -65,6 +54,35 @@ meta structure chat_state : Type :=
   (bubbles : list bubble)
   (current_text : string)
 
+/- @zhangir: write your code for getting response from codex here :-) -/
+meta def get_response : chat_state → io string
+| state := do {
+    (head :: tail) ← pure $ state.bubbles | io.fail "no chat yet",
+    let s := 
+      match tail with
+      | [] := head
+      | tail := _
+      end,
+    let prompt := prompt_of_nl_statement s few_shot_prompt,  
+    return_json ← get_completion_of_request {prompt:=prompt},
+    io.put_str return_json,  
+    (some maybe_return_parsed) ← pure (json.parse return_json) | io.fail "not json",
+    t : string ← run_except $ text_of_return_json maybe_return_parsed,
+    return (t ++ " :=")
+  }
+
+-- use some @gebner magic here
+meta def unsafe_perform_io {α} (m : io α) : except io.error α :=
+match (cast undefined m : unit → sum α io.error) () with
+| sum.inl a := except.ok a
+| sum.inr err := except.error err
+end
+
+meta def unsafe_get_response (input : chat_state) : string :=
+  match unsafe_perform_io (get_response input) with
+  | except.ok a := a
+  | except.error e := "error"
+  end
 meta inductive chat_action
   | submit
   | text_change (s : string)
@@ -73,11 +91,11 @@ meta def chat_init (props : chat_props) (old_state : option chat_state) : chat_s
   {bubbles := [], current_text := ""} <| old_state
 
 meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_action) :=
-  [h "div" [] [
+  [h "div" [className "f4"] [
     h "div" [className "flex flex-column"] (
       state.bubbles.reverse.map (λ bubble,
-        h "div" [] [
-          h "span" [className "underline blue"] [bubble.user],
+        h "div" [className "pa2 ma2"] [
+          h "span" [className "underline blue mr2"] [bubble.user],
           ": ",
           bubble.body
         ]
@@ -96,7 +114,7 @@ meta def chat_update (props : chat_props) (state : chat_state) : chat_action →
     let text := state.current_text in
     let state := {current_text := "", ..state} in
     let state := push_bubble {body := text, user := "self"} state in
-    let state := push_bubble {body := unsafe_get_response text, user := "codex"} state in
+    let state := push_bubble {body := unsafe_get_response state, user := "codex"} state in
     (state, none)
   | (chat_action.text_change s) := ({current_text := s, ..state}, none)
 
