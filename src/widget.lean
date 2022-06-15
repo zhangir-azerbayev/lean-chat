@@ -107,6 +107,7 @@ meta inductive chat_action
   | text_change (s : string)
   | copy_to_comment (s : string)
   | copy_to_script (s : string)
+  | clear 
 
 meta def code_content (code : string) : html chat_action :=
   h "div" [] [
@@ -154,7 +155,8 @@ meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_a
     h "div" [] [
       textbox state.current_text chat_action.text_change,
       button "submit" chat_action.submit, -- [todo] how to get it to trigger on enter?
-      button "demo" chat_action.demo_text
+      button "demo" chat_action.demo_text, 
+      button "clear" chat_action.clear
     ]
   ]]
 
@@ -174,6 +176,7 @@ meta def chat_update (props : chat_props)  : chat_state → chat_action → (cha
     -- @zhangir add your example here to avoid having to paste it in every time!
     let state := {current_text := "If $x$ is an element of infinite order in $G$, prove that the elements $x^n$, $n\\in\\mathbb{Z}$ are all distinct.", ..state} in
     chat_update state chat_action.submit
+  | state (chat_action.clear) := ({current_text:="", bubbles:=[]}, none)
 
 meta def chat_init (props : chat_props) (old_state : option chat_state) : chat_state :=
   let s : chat_state := ({bubbles := [], current_text := ""} <| old_state) in
