@@ -71,7 +71,7 @@ meta def get_response : chat_state → io string
         -- want this python command: "\n".join([x.body for x in state.bubbles].reverse[1:])
       end,
     let prompt := prompt_of_nl_statement statement few_shot_prompt ++ rest_of_context,
-    io.put_str_ln (prompt ++ "<endoftext>"),
+    --io.put_str_ln (prompt ++ "<endoftext>"),
     return_json ← get_completion_of_request {prompt:=prompt},
     (some maybe_return_parsed) ← pure (json.parse return_json) | io.fail "not json",
     t : string ← run_except $ text_of_return_json maybe_return_parsed,
@@ -114,7 +114,7 @@ meta def code_content (code : string) : html chat_action :=
       code
     ],
     h "div" [] [
-      button "paste" (chat_action.copy_to_script code)
+      button "paste" (chat_action.copy_to_script ("theorem " ++ code))
     ]
   ]
 
