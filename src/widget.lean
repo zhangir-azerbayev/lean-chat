@@ -44,6 +44,7 @@ meta def run_except {α} : except string α → io α
   
 
 
+@[derive inhabited]
 meta structure bubble :=
   (body : string) -- [todo] add formatting etc
   (user : string)
@@ -57,15 +58,21 @@ meta structure chat_state : Type :=
 /- @zhangir: write your code for getting response from codex here :-) -/
 meta def get_response : chat_state → io string
 | state := do {
-    (head :: tail) ← pure $ state.bubbles | io.fail "no chat yet",
-    let s := 
+    bubbles@(head :: tail) ← pure $ state.bubbles | io.fail "no chat yet",
+    let statement := 
       match tail with
-      | [] := head
-      | tail := _
+      | [] := head.body
+      | tail := (list.reverse tail).head.body 
       end,
-    let prompt := prompt_of_nl_statement s few_shot_prompt,  
+    let rest_of_context := 
+      match tail with 
+      | [] := ""
+      | tail := (string.intercalate "\n" $  list.map bubble.body $ list.tail $ list.reverse $ bubbles) ++ " Try again:\ntheorem"
+        -- want this python command: "\n".join([x.body for x in state.bubbles].reverse[1:])
+      end, 
+    let prompt := prompt_of_nl_statement statement few_shot_prompt ++ rest_of_context, 
+    io.put_str_ln (prompt ++ "<endoftext>"),  
     return_json ← get_completion_of_request {prompt:=prompt},
-    io.put_str return_json,  
     (some maybe_return_parsed) ← pure (json.parse return_json) | io.fail "not json",
     t : string ← run_except $ text_of_return_json maybe_return_parsed,
     return (t ++ " :=")
@@ -91,13 +98,15 @@ meta def chat_init (props : chat_props) (old_state : option chat_state) : chat_s
   {bubbles := [], current_text := ""} <| old_state
 
 meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_action) :=
-  [h "div" [className "f4"] [
+  [h "div" [className "f5"] [
     h "div" [className "flex flex-column"] (
       state.bubbles.reverse.map (λ bubble,
-        h "div" [className "pa2 ma2"] [
+        h "div" [className "pa2 ma2 bg-lightest-blue"] [
           h "span" [className "underline blue mr2"] [bubble.user],
           ": ",
-          bubble.body
+          h "code" [className "font-code pre"] [
+            bubble.body
+          ]
         ]
       )
     ),
