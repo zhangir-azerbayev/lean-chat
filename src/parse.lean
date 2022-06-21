@@ -21,7 +21,7 @@ def test1 := "theorem group_with_all_squares_equal_to_one_is_abelian (G : Type*)
    ∀ x y : G, x * y = y * x := sorry"
 
 def test2 := "theorem binomial_theorem_char_p (F : Type*) [field F] (p : ℕ) (hp : char_p F p)
-  (a b : F) : (a + b)^p = ∑ i in finset.range p, (p.choose i) * a^i * b^(p - i) := sorry"
+  (a b : F) : (a + b)^p = ∑ i in finset.range p, (p choose i) * a^i * b^(p - i) := sorry"
 
 -- theorem binomial_theorem_char_p (F : Type*) [field F] (p : ℕ) (hp : char_p F p)
 --   (a b : F) : (a + b)^p = ∑ i in finset.range p, (p choose i) * a^i * b^(p - i) := sorry
@@ -102,13 +102,13 @@ meta def parse_decl : parser decl_parse_result := do
 
 -- set_option pp.all true
 
-run_cmd do {
-   d1 ← parser.run_with_input parse_decl test1,
-   tactic.trace d1.name,
-   tactic.trace d1.type,
-   -- this step errors
-   d2 ← parser.run_with_input parse_decl test2,
-   tactic.trace d2.name,
-   tactic.trace d2.type
-}
+-- run_cmd do {
+--    d1 ← parser.run_with_input parse_decl test1,
+--    tactic.trace d1.name,
+--    tactic.trace d1.type,
+--    -- this step errors
+--    d2 ← parser.run_with_input parse_decl test2,
+--    tactic.trace d2.name,
+--    tactic.trace d2.type
+-- }
 

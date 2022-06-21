@@ -1,5 +1,6 @@
 import system.io
 import query_api
+import parse
 
 open widget tactic
 section json
@@ -107,7 +108,7 @@ meta inductive chat_action
   | text_change (s : string)
   | copy_to_comment (s : string)
   | copy_to_script (s : string)
-  | clear 
+  | clear
 
 meta def code_content (code : string) : html chat_action :=
   h "div" [] [
@@ -145,7 +146,7 @@ meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_a
       state.bubbles.reverse.map (λ bubble,
         h "div" [className "pa2 ma2 bg-lightest-blue"] [
           h "div" [className "mr2"] [bubble.user, ": "],
-          if bubble.user = "codex" then
+          if bubble.user ≠ "self" then
             code_content bubble.body
           else
             nl_content bubble.body
@@ -155,19 +156,41 @@ meta def chat_view (props : chat_props) (state : chat_state) : list (html chat_a
     h "div" [] [
       textbox state.current_text chat_action.text_change,
       button "submit" chat_action.submit, -- [todo] how to get it to trigger on enter?
-      button "demo" chat_action.demo_text, 
+      button "demo" chat_action.demo_text,
       button "clear" chat_action.clear
     ]
   ]]
 
 meta def push_bubble (b : bubble) (s : chat_state) : chat_state := {bubbles := b :: s.bubbles, ..s}
 
+
+#check tactic.unsafe_run_io
+/-- runs the lean parser on the response, if it's good then returns an error message, otherwise returns none.
+  I am not proud of this method, this should be considered bad Lean practice.
+-/
+meta def unsafe_parse_result (response : string) : option string := do
+  empty_tactic_state ← except.to_option $ unsafe_perform_io (io.run_tactic tactic.read),
+  let t := lean.parser.run_with_input parse_decl response empty_tactic_state,
+  match t with
+  | result.success a s := none
+  | result.exception (some msg) pos s := some (to_string $ msg())
+  | result.exception _ _ _ := some "exception with no message!"
+  end
+
 meta def chat_update (props : chat_props)  : chat_state → chat_action → (chat_state × option effect)
   | state (chat_action.submit) :=
-    let text := state.current_text in
-    let state := {current_text := "", ..state} in
-    let state := push_bubble {body := text, user := "self"} state in
-    let state := push_bubble {body := unsafe_get_response state, user := "codex"} state in
+    let text := state.current_text,
+        state := {current_text := "", ..state},
+        state := push_bubble {body := text, user := "self"} state,
+        response := unsafe_get_response state,
+        state := push_bubble {body := response, user := "codex"} state,
+        state := push_bubble {
+          body := match unsafe_parse_result response with
+                  | (some msg) := "error:\n" ++ msg
+                  | none := "check passes!"
+                  end,
+          user := "lean"} state
+        in
     (state, none)
   | state (chat_action.text_change s) := ({current_text := s, ..state}, none)
   | state (chat_action.copy_to_comment str) := (state, some $ effect.insert_text $ "/--\n" ++ str ++ "\n-/")
