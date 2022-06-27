@@ -185,7 +185,7 @@ meta def chat_update (props : chat_props)  : chat_state → chat_action → (cha
         response := unsafe_get_response state,
         state := push_bubble {body := response, user := "codex"} state,
         state := push_bubble {
-          body := match unsafe_parse_result response with
+          body := match unsafe_parse_result ("def " ++ response) with
                   | (some msg) := "error:\n" ++ msg
                   | none := "check passes!"
                   end,
